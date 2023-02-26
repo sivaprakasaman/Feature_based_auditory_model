@@ -1,4 +1,4 @@
-function split_train_test_list(inclass_call_type, mel_spectrogram_dir, model_list_output_dir, train_test_split)
+function split_train_test_list(inclass_call_type, mel_spectrogram_dir, model_list_output_dir, max_calls_per_group, train_test_split)
 % function split_train_test_list(inclass_call_type, mel_spectrogram_dir, model_list_output_dir, train_test_split)
 % Usage: Split inclass and outclass data for training and testing 
 % Inputs:
@@ -23,6 +23,9 @@ end
 
 fprintf('Creating lists in %s\n', model_list_output_dir)
 
+mel_spectrogram_dir= helper.GetFullPath(mel_spectrogram_dir);
+model_list_output_dir= helper.GetFullPath(model_list_output_dir);
+
 %% Read all call names and split into inclass/outclass groups 
 rng(0); % set seed for reproducibility 
 
@@ -34,16 +37,18 @@ outclass_indices= ~strcmpi(all_call_names, inclass_call_type);
 
 inclass_melSGnames= all_mel_spects(inclass_indices);
 inclass_melSGnames= cellfun(@(x,y) [x filesep y], {inclass_melSGnames.folder}', {inclass_melSGnames.name}', 'UniformOutput', false);
+num_calls_inclass= min(numel(inclass_melSGnames), max_calls_per_group);
+inclass_melSGnames= randsample(inclass_melSGnames, num_calls_inclass);
 
 % nontarget = rest of the calls 
 outclass_melSGnames= all_mel_spects(outclass_indices);
 outclass_melSGnames= cellfun(@(x,y) [x filesep y], {outclass_melSGnames.folder}', {outclass_melSGnames.name}', 'UniformOutput', false);
+num_calls_outclass= min(numel(outclass_melSGnames), num_calls_inclass);
+outclass_melSGnames= randsample(outclass_melSGnames, num_calls_outclass); % optional: to keep the same number of inclass and outclass calls 
 
-outclass_melSGnames= randsample(outclass_melSGnames, numel(inclass_melSGnames)); % optional: to keep the same number of inclass and outclass calls 
-
-inclass_melSGnames_train= randsample(inclass_melSGnames, round(train_test_split*numel(inclass_melSGnames)));
+inclass_melSGnames_train= randsample(inclass_melSGnames, round(train_test_split*num_calls_inclass));
 inclass_melSGnames_test= setdiff(inclass_melSGnames, inclass_melSGnames_train);
-outclass_melSGnames_train= randsample(outclass_melSGnames, round(train_test_split*numel(outclass_melSGnames)));
+outclass_melSGnames_train= randsample(outclass_melSGnames, round(train_test_split*num_calls_outclass));
 outclass_melSGnames_test= setdiff(outclass_melSGnames, outclass_melSGnames_train);
 
 %% Define output directory and filenames 
@@ -70,5 +75,5 @@ end
 
 %% Functions 
 function call_name= extract_call_name(dirName)
-call_name= extractAfter(dirName, ['Mel_spect' filesep]);
+call_name= dirName((length(fileparts(dirName))+2):end);
 end
